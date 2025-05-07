@@ -1,0 +1,267 @@
+import cv2
+import numpy as np
+import matplotlib.pyplot as plt
+import os
+import time
+
+def load_image(filename, mode=cv2.IMREAD_GRAYSCALE):
+    if not os.path.exists(filename):
+        print(f"Error: {filename} not found. Make sure encryption code runs first.")
+        return None
+    return cv2.imread(filename, mode)
+
+# Load necessary images
+original_color = load_image("original.png", cv2.IMREAD_COLOR)
+encrypted_color = load_image("encrypted.png", cv2.IMREAD_COLOR)
+R_enc = load_image("encrypted_R_channel.png")
+G_enc = load_image("encrypted_G_channel.png")
+B_enc = load_image("encrypted_B_channel.png")
+
+# Check if the loaded channels are in uint8 format
+if R_enc is not None:
+    R_enc = R_enc.astype(np.uint8)
+if G_enc is not None:
+    G_enc = G_enc.astype(np.uint8)
+if B_enc is not None:
+    B_enc = B_enc.astype(np.uint8)
+
+if original_color is not None:
+    R, G, B = cv2.split(original_color)
+    N = R.shape[0]
+else:
+    R, G, B, N = None, None, None, None
+
+# entropy
+def calculate_entropy(channel):
+    if channel is None:
+        return None
+    max_val = np.iinfo(channel.dtype).max
+    bins1 = max_val + 1
+    hist, _ = np.histogram(channel.ravel(), bins=bins1, range=(0, bins1))
+    prob_dist = hist / np.sum(hist)
+    prob_dist = prob_dist[prob_dist > 0]
+    entropy = -np.sum(prob_dist * np.log2(prob_dist))
+    return entropy
+
+entropy_R = calculate_entropy(R_enc)
+entropy_G = calculate_entropy(G_enc)
+entropy_B = calculate_entropy(B_enc)
+
+print("Information Entropy of Encrypted Channels:")
+print(f"Red Channel: {entropy_R:.6f}")
+print(f"Green Channel: {entropy_G:.6f}")
+print(f"Blue Channel: {entropy_B:.6f}")
+
+# Mean Squared Error (MSE)
+def calculate_mse(original, encrypted):
+    if original is None or encrypted is None:
+        return None
+    """mse = np.mean((original.astype(np.float64) - encrypted.astype(np.float64)) ** 2)"""
+    mse = np.mean((original.astype(np.float64) - encrypted.astype(np.float64)) ** 2)
+    return mse
+
+mse_R = calculate_mse(R, R_enc)
+mse_G = calculate_mse(G, G_enc)
+mse_B = calculate_mse(B, B_enc)
+
+print("\nMean Squared Error (MSE) between Original and Encrypted Channels:")
+print(f"Red Channel: {mse_R:.6f}")
+print(f"Green Channel: {mse_G:.6f}")
+print(f"Blue Channel: {mse_B:.6f}")
+
+# Peak Signal-to-Noise Ratio (PSNR)
+def calculate_psnr(mse, max_pixel=255):
+    """if mse is None or mse == 0:
+        return None  # Avoid division by zero
+    psnr = 10 * np.log10((max_pixel ** 2) / mse)
+    return psnr"""
+    if mse is None or mse == 0:
+        return float('inf')
+    if max_pixel is None:
+        max_pixel = np.iinfo(image.dtype).max if image is not None else 255
+    psnr = 10 * np.log10((max_pixel ** 2) / mse)
+    return psnr
+
+psnr_R = calculate_psnr(mse_R)
+psnr_G = calculate_psnr(mse_G)
+psnr_B = calculate_psnr(mse_B)
+
+print("\nPeak Signal-to-Noise Ratio (PSNR) for Encrypted Channels:")
+print(f"Red Channel: {psnr_R:.6f} dB")
+print(f"Green Channel: {psnr_G:.6f} dB")
+print(f"Blue Channel: {psnr_B:.6f} dB")
+
+# NPCR
+def calculate_npcr(original, encrypted):
+    if original is None or encrypted is None or original.shape != encrypted.shape:
+        return None
+    diff = original != encrypted
+    npcr = (np.sum(diff) / original.size) * 100
+    return npcr
+
+npcr_R = calculate_npcr(R, R_enc)
+npcr_G = calculate_npcr(G, G_enc)
+npcr_B = calculate_npcr(B, B_enc)
+
+print("\nNumber of Pixel Change Rate (NPCR):")
+print(f"Red Channel: {npcr_R:.6f}%")
+print(f"Green Channel: {npcr_G:.6f}%")
+print(f"Blue Channel: {npcr_B:.6f}%")
+
+# UACI
+def calculate_uaci(original, encrypted):
+    if original is None or encrypted is None:
+        return None
+    uaci = (np.sum(np.abs(original.astype(np.float64) - encrypted.astype(np.float64))) / (original.size * 255)) * 100
+    return uaci
+
+uaci_R = calculate_uaci(R, R_enc)
+uaci_G = calculate_uaci(G, G_enc)
+uaci_B = calculate_uaci(B, B_enc)
+
+print("\nUnified Average Changing Intensity (UACI):")
+print(f"Red Channel: {uaci_R:.6f}%")
+print(f"Green Channel: {uaci_G:.6f}%")
+print(f"Blue Channel: {uaci_B:.6f}%")
+
+# Mean Absolute Error (MAE)
+def calculate_mae(original, encrypted):
+    if original is None or encrypted is None:
+        return None
+    mae = np.mean(np.abs(original.astype(np.float64) - encrypted.astype(np.float64)))
+    return mae
+
+mae_R = calculate_mae(R, R_enc)
+mae_G = calculate_mae(G, G_enc)
+mae_B = calculate_mae(B, B_enc)
+
+print("\nMean Absolute Error (MAE):")
+print(f"Red Channel: {mae_R:.6f}")
+print(f"Green Channel: {mae_G:.6f}")
+print(f"Blue Channel: {mae_B:.6f}")
+
+#Time Analysis
+print(f"\nEncryption Time: {encryption_time:.6f} seconds")
+
+# compute keyspace
+def calculate_keyspace(num_variables=9, precision=1e-16):
+    keyspace = (1 / precision) ** num_variables
+    keyspace_bits = np.log2(keyspace)
+    return keyspace, keyspace_bits
+
+keyspace_value, keyspace_bits = calculate_keyspace()
+
+print(f"\nEstimated Keyspace ≈ {keyspace_value:.2e} ≈ 2^{keyspace_bits:.0f} bits\n")
+
+# plot histogram
+def plot_histogram(channel, title, position, color):
+    if channel is None:
+        print(f"Skipping {title} due to missing image.")
+        return
+    plt.subplot(2, 3, position)
+    plt.hist(channel.ravel(), bins=256, range=[0, 256], color=color, alpha=0.7)
+    plt.title(f"Histogram of {title}")
+    plt.xlabel("Pixel Value")
+    plt.ylabel("Frequency")
+
+plt.figure(figsize=(16, 8))
+
+plot_histogram(R, "Red (Original)", 1, 'r')
+plot_histogram(G, "Green (Original)", 2, 'g')
+plot_histogram(B, "Blue (Original)", 3, 'b')
+
+plot_histogram(R_enc, "Red (Encrypted)", 4, 'r')
+plot_histogram(G_enc, "Green (Encrypted)", 5, 'g')
+plot_histogram(B_enc, "Blue (Encrypted)", 6, 'b')
+
+plt.tight_layout()
+plt.show()
+
+# Fourier Transform Analysis
+def plot_fourier_transform(image, title, position):
+    if image is None:
+        print(f"Skipping Fourier Transform for {title} due to missing image.")
+        return
+    f_transform = np.fft.fft2(image)
+    f_transform_shifted = np.fft.fftshift(f_transform)
+    magnitude_spectrum = 20 * np.log(np.abs(f_transform_shifted) + 1)
+
+    plt.subplot(1, 2, position)
+    plt.imshow(magnitude_spectrum, cmap='gray')
+    plt.title(f'Fourier Transform of {title}')
+    plt.axis('off')
+
+plt.figure(figsize=(12, 6))
+
+plot_fourier_transform(cv2.cvtColor(original_color, cv2.COLOR_BGR2GRAY), "Original Image", 1)
+plot_fourier_transform(cv2.cvtColor(encrypted_color, cv2.COLOR_BGR2GRAY), "Encrypted Image", 2)
+
+plt.tight_layout()
+plt.show()
+
+# Correlation Coefficient Calculation
+def calculate_correlation(image_original, image_encrypted, direction):
+    x_plain, y_plain = extract_adjacent_pixels(image_original, direction)
+    x_enc, y_enc = extract_adjacent_pixels(image_encrypted, direction)
+
+    if x_plain is None or y_plain is None or x_enc is None or y_enc is None:
+        return None, None
+
+    plain_corr = np.corrcoef(x_plain, y_plain)[0, 1]
+    enc_corr = np.corrcoef(x_enc, y_enc)[0, 1]
+    return plain_corr, enc_corr
+
+directions = ["horizontal", "vertical", "diagonal"]
+channels = {"Red": (R, R_enc), "Green": (G, G_enc), "Blue": (B, B_enc)}
+
+print("\nCorrelation Coefficient Analysis:\n")
+
+for channel_name, (orig, enc) in channels.items():
+    print(f"Channel: {channel_name}")
+    for direction in directions:
+        plain_corr, enc_corr = calculate_correlation(orig, enc, direction)
+        print(f"  {direction.capitalize()} - Plain: {plain_corr:.6f}, Encrypted: {enc_corr:.6f}")
+    print()
+#plot 
+def plot_correlation(image_plain, image_enc, title):
+    if image_plain is None or image_enc is None:
+        print(f"Skipping {title} correlation diagrams due to missing data.")
+        return
+
+    directions = ["horizontal", "vertical", "diagonal"]
+    plt.figure(figsize=(12, 8))
+
+    for i, direction in enumerate(directions, 1):
+        x_plain, y_plain = extract_adjacent_pixels(image_plain, direction)
+        x_enc, y_enc = extract_adjacent_pixels(image_enc, direction)
+
+        if x_plain is None or y_plain is None or x_enc is None or y_enc is None:
+            continue
+
+        plt.subplot(2, 3, i)
+        plt.scatter(x_plain, y_plain, s=1, color='blue', alpha=0.5)
+        plt.title(f"{title} - Plain {direction.capitalize()}")
+        plt.xlabel("Pixel Intensity (X)")
+        plt.ylabel("Pixel Intensity (Y)")
+
+        plt.subplot(2, 3, i + 3)
+        plt.scatter(x_enc, y_enc, s=1, color='red', alpha=0.5)
+        plt.title(f"{title} - Encrypted {direction.capitalize()}")
+        plt.xlabel("Pixel Intensity (X)")
+        plt.ylabel("Pixel Intensity (Y)")
+
+    plt.tight_layout()
+    plt.show()
+
+# 1. Original Image Correlation (6 diagrams)
+plot_correlation(original_gray, encrypted_gray, "Original Image")
+
+# 2. Encrypted Red Channel Correlation (6 diagrams)
+plot_correlation(original_gray, encrypted_red, "Red Channel")
+
+# 3. Encrypted Green Channel Correlation (6 diagrams)
+plot_correlation(original_gray, encrypted_green, "Green Channel")
+
+# 4. Encrypted Blue Channel Correlation (6 diagrams)
+plot_correlation(original_gray, encrypted_blue, "Blue Channel")
+
